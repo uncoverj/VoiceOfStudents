@@ -45,5 +45,7 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 # Replit
+.agents/
 .cache/
 .local/
+Webster-Voice/
