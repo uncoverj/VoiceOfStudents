@@ -21,7 +21,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   └── student-voice/      # StudentVoice React frontend
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -35,6 +36,37 @@ artifacts-monorepo/
 └── package.json            # Root package with hoisted devDeps
 ```
 
+## Applications
+
+### StudentVoice (`artifacts/student-voice`)
+
+Anonymous feedback platform for Webster University Tashkent.
+
+- **Design**: Navy blue (#1a2744) + gold (#f0b429) theme
+- **Pages**:
+  - `/` — Home/Feed with category filters and sort (latest/most liked)
+  - `/create` — Create anonymous post form
+  - `/posts/:id` — Post detail with comments
+  - `/admin` — Admin dashboard with stats, charts, and tables
+- **Libraries**: React Query, Recharts, react-hook-form, framer-motion, date-fns
+
+### API Server (`artifacts/api-server`)
+
+Express 5 API server. Routes in `src/routes/`.
+
+- **Endpoints**:
+  - `GET /api/posts?category=&sort=` — list posts
+  - `POST /api/posts` — create post
+  - `GET /api/posts/:id` — post detail with comments
+  - `POST /api/posts/:id/like` — like a post
+  - `POST /api/posts/:id/comments` — add anonymous comment
+  - `GET /api/admin/stats` — admin dashboard stats
+
+## Database Schema
+
+- `posts` — id, title, content, category, like_count, comment_count, created_at
+- `comments` — id, post_id, content, created_at
+
 ## TypeScript & Composite Projects
 
 Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
@@ -47,6 +79,10 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+
+## Seeding
+
+Run `pnpm --filter @workspace/scripts run seed` to seed the database with sample posts and comments.
 
 ## Packages
 
@@ -68,7 +104,8 @@ Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client insta
 
 - `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
 - `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
+- `src/schema/posts.ts` — posts table definition
+- `src/schema/comments.ts` — comments table definition
 - `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
 - Exports: `.` (pool, db, schema), `./schema` (schema only)
 
