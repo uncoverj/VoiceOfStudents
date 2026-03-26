@@ -1,13 +1,22 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable, commentsTable } from "@workspace/db";
+import { db, postsTable, commentsTable, postLikesTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import {
   CreatePostBody,
   CreateCommentBody,
   ListPostsQueryParams,
 } from "@workspace/api-zod";
+import { getOrSetDeviceId } from "../lib/device-id";
+import { getModerationErrorMessage } from "../lib/moderation";
 
 const router: IRouter = Router();
+const DUPLICATE_LIKE_MESSAGE = "You can like a post only once from the same device.";
+
+class DuplicateLikeError extends Error {
+  constructor() {
+    super(DUPLICATE_LIKE_MESSAGE);
+  }
+}
 
 router.get("/posts", async (req, res) => {
   try {
@@ -54,6 +63,15 @@ router.post("/posts", async (req, res) => {
     const parsed = CreatePostBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+
+    const moderationError = getModerationErrorMessage([
+      parsed.data.title,
+      parsed.data.content,
+    ]);
+    if (moderationError) {
+      res.status(400).json({ error: moderationError });
       return;
     }
 
@@ -134,11 +152,36 @@ router.post("/posts/:id/like", async (req, res) => {
       return;
     }
 
-    const [post] = await db
-      .update(postsTable)
-      .set({ likeCount: sql`${postsTable.likeCount} + 1` })
-      .where(eq(postsTable.id, id))
-      .returning();
+    const deviceId = getOrSetDeviceId(req, res);
+
+    const post = await db.transaction(async (tx) => {
+      const [existingPost] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, id));
+
+      if (!existingPost) {
+        return null;
+      }
+
+      const insertedLike = await tx
+        .insert(postLikesTable)
+        .values({ postId: id, deviceId })
+        .onConflictDoNothing()
+        .returning({ postId: postLikesTable.postId });
+
+      if (insertedLike.length === 0) {
+        throw new DuplicateLikeError();
+      }
+
+      const [updatedPost] = await tx
+        .update(postsTable)
+        .set({ likeCount: sql`${postsTable.likeCount} + 1` })
+        .where(eq(postsTable.id, id))
+        .returning();
+
+      return updatedPost;
+    });
 
     if (!post) {
       res.status(404).json({ error: "Post not found" });
@@ -155,6 +198,11 @@ router.post("/posts/:id/like", async (req, res) => {
       createdAt: post.createdAt.toISOString(),
     });
   } catch (err) {
+    if (err instanceof DuplicateLikeError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+
     req.log.error({ err }, "Failed to like post");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -171,6 +219,12 @@ router.post("/posts/:id/comments", async (req, res) => {
     const parsed = CreateCommentBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+
+    const moderationError = getModerationErrorMessage([parsed.data.content]);
+    if (moderationError) {
+      res.status(400).json({ error: moderationError });
       return;
     }
 

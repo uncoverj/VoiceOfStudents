@@ -3,9 +3,10 @@ import { Layout } from "@/components/layout";
 import { usePost, useLikePost, useCreateComment } from "@/hooks/use-posts";
 import { AlertCircle, ArrowLeft, Clock3, Heart, MessageCircle, Send, Share2, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { getApiErrorMessage, hasLikedPost, isAlreadyLikedError, markPostLiked } from "@/lib/utils";
 
 export default function PostDetail() {
   const params = useParams();
@@ -17,6 +18,11 @@ export default function PostDetail() {
   const { mutate: createComment, isPending: isCommenting } = useCreateComment();
 
   const [commentText, setCommentText] = useState("");
+  const [liked, setLiked] = useState(() => hasLikedPost(id));
+
+  useEffect(() => {
+    setLiked(hasLikedPost(id));
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -57,8 +63,33 @@ export default function PostDetail() {
   }
 
   const handleLike = () => {
-    if (!isLiking) {
-      likePost({ id });
+    if (!isLiking && !liked) {
+      likePost(
+        { id },
+        {
+          onSuccess: () => {
+            markPostLiked(id);
+            setLiked(true);
+          },
+          onError: (error) => {
+            const message = getApiErrorMessage(
+              error,
+              "You can like a post only once from the same device.",
+            );
+
+            if (isAlreadyLikedError(message)) {
+              markPostLiked(id);
+              setLiked(true);
+            }
+
+            toast({
+              title: "Unable to like this post",
+              description: message,
+              variant: "destructive",
+            });
+          },
+        },
+      );
     }
   };
 
@@ -79,8 +110,15 @@ export default function PostDetail() {
         setCommentText("");
         toast({ title: "Comment published" });
       },
-      onError: () => {
-        toast({ title: "Failed to post comment", variant: "destructive" });
+      onError: (error) => {
+        toast({
+          title: "Failed to post comment",
+          description: getApiErrorMessage(
+            error,
+            "Please review the comment and try again.",
+          ),
+          variant: "destructive",
+        });
       }
     });
   };
@@ -156,14 +194,14 @@ export default function PostDetail() {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleLike}
-                  disabled={isLiking}
+                  disabled={isLiking || liked}
                   className={`story-link ${
-                    post.likeCount > 0
+                    liked
                       ? "bg-accent/10 text-accent hover:bg-accent/15"
                       : "bg-secondary/90 text-foreground hover:-translate-y-0.5 hover:bg-secondary"
                   }`}
                 >
-                  <Heart className={`h-5 w-5 ${isLiking ? "animate-pulse" : ""} ${post.likeCount > 0 ? "fill-accent text-accent" : ""}`} />
+                  <Heart className={`h-5 w-5 ${isLiking ? "animate-pulse" : ""} ${liked ? "fill-accent text-accent" : ""}`} />
                   {post.likeCount} Likes
                 </button>
 
@@ -198,7 +236,7 @@ export default function PostDetail() {
             </div>
 
             <p className="max-w-md text-sm leading-6 text-muted-foreground">
-              Keep replies constructive. This thread works best when people add context, not noise.
+              Keep replies constructive. Abuse, offensive language and external links are filtered automatically.
             </p>
           </div>
 

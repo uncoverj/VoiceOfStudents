@@ -8,6 +8,7 @@ import { useCreatePost } from "@/hooks/use-posts";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
+import { getApiErrorMessage } from "@/lib/utils";
 
 const formSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(100, "Title is too long"),
@@ -31,6 +32,24 @@ const PROMPTS = [
     title: "Stay constructive",
     description: "Clarity beats drama. A concise post gets read and acted on faster.",
     icon: Sparkles,
+  },
+];
+const COMMUNITY_RULES = [
+  {
+    title: "Respect first",
+    description: "Insults, harassment and offensive language are blocked. Critique the issue, not people.",
+  },
+  {
+    title: "No links or invites",
+    description: "External links, group invites, self-promo and redirect-style posts are not allowed.",
+  },
+  {
+    title: "Stay campus-relevant",
+    description: "Posts should fit student life, study, teachers, ideas or infrastructure around Webster.",
+  },
+  {
+    title: "Be concrete",
+    description: "The clearest posts explain what happened, why it matters and what should improve next.",
   },
 ];
 
@@ -63,11 +82,14 @@ export default function CreatePost() {
         });
         setLocation("/");
       },
-      onError: () => {
+      onError: (error) => {
         toast({
           variant: "destructive",
-          title: "Error",
-          description: "Failed to create post. Please try again.",
+          title: "Unable to publish",
+          description: getApiErrorMessage(
+            error,
+            "Failed to create post. Please try again.",
+          ),
         });
       }
     });
@@ -136,6 +158,23 @@ export default function CreatePost() {
                   </motion.div>
                 );
               })}
+            </div>
+
+            <div className="editorial-card p-6 sm:p-8">
+              <div className="relative z-10">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-accent">
+                  Community rules
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">A safer board for real campus issues</h3>
+                <div className="mt-6 grid gap-3">
+                  {COMMUNITY_RULES.map((rule) => (
+                    <div key={rule.title} className="rounded-[1.35rem] border border-white/70 bg-white/78 p-4">
+                      <p className="text-base font-semibold text-foreground">{rule.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{rule.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.section>
 
@@ -216,7 +255,7 @@ export default function CreatePost() {
 
                 <div className="flex flex-col gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                    Your post becomes part of a clean public feed for Webster University Tashkent students. Keep it specific and constructive.
+                    Your post becomes part of a clean public feed for Webster University Tashkent students. Abuse and links are blocked automatically.
                   </p>
 
                   <button

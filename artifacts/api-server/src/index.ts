@@ -34,6 +34,13 @@ async function runMigrations() {
       content TEXT NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS post_likes (
+      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      device_id TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (post_id, device_id)
+    );
   `);
   logger.info("Database migrations applied");
 }
@@ -53,4 +60,3 @@ runMigrations()
     logger.error({ err }, "Failed to run migrations");
     process.exit(1);
   });
-

@@ -1,17 +1,51 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowUpRight, Clock3, Heart, MessageCircle, ShieldCheck } from "lucide-react";
 import { Post } from "@workspace/api-client-react";
 import { formatDistanceToNow } from "date-fns";
 import { useLikePost } from "@/hooks/use-posts";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage, hasLikedPost, isAlreadyLikedError, markPostLiked } from "@/lib/utils";
 
 export function PostCard({ post, linkToDetail = true }: { post: Post, linkToDetail?: boolean }) {
   const { mutate: likePost, isPending: isLiking } = useLikePost();
+  const { toast } = useToast();
+  const [liked, setLiked] = useState(() => hasLikedPost(post.id));
+
+  useEffect(() => {
+    setLiked(hasLikedPost(post.id));
+  }, [post.id]);
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isLiking) {
-      likePost({ id: post.id });
+    if (!isLiking && !liked) {
+      likePost(
+        { id: post.id },
+        {
+          onSuccess: () => {
+            markPostLiked(post.id);
+            setLiked(true);
+          },
+          onError: (error) => {
+            const message = getApiErrorMessage(
+              error,
+              "You can like a post only once from the same device.",
+            );
+
+            if (isAlreadyLikedError(message)) {
+              markPostLiked(post.id);
+              setLiked(true);
+            }
+
+            toast({
+              title: "Unable to like this post",
+              description: message,
+              variant: "destructive",
+            });
+          },
+        },
+      );
     }
   };
 
@@ -62,16 +96,16 @@ export function PostCard({ post, linkToDetail = true }: { post: Post, linkToDeta
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={handleLike}
-              disabled={isLiking}
+              disabled={isLiking || liked}
               className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold transition-all duration-200 active:scale-95 ${
-                post.likeCount > 0
+                liked
                   ? "bg-accent/10 text-accent hover:bg-accent/15"
                   : "bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`}
             >
               <Heart
                 className={`h-4 w-4 ${isLiking ? "animate-pulse" : ""} ${
-                  post.likeCount > 0 ? "fill-accent text-accent" : ""
+                  liked ? "fill-accent text-accent" : ""
                 }`}
               />
               {post.likeCount}
